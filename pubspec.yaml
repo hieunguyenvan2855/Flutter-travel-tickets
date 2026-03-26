@@ -1,0 +1,44 @@
+name: cuoiki
+description: "Hệ thống quản lý bán vé du lịch"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  
+  # Nâng cấp lên các phiên bản sửa lỗi null safety nội bộ
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  cloud_firestore: ^4.15.8
+  firebase_messaging: ^14.7.19
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Storage & API
+  cloudinary_public: ^0.23.1
+  shared_preferences: ^2.2.2
+  http: ^1.1.0
+  image_picker: ^1.0.4
+  
+  # Location & Maps
+  geolocator: ^10.1.0
+  google_maps_flutter: ^2.5.0
+  
+  # UI & Helpers
+  intl: ^0.18.1
+  fl_chart: ^0.65.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
