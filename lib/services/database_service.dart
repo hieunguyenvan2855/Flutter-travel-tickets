@@ -51,18 +51,12 @@ class DatabaseService {
   // 1. TOUR FETCHING WITH OFFLINE CACHING & FAKE DATA
   Stream<List<Tour>> get tours {
     return _db.collection('tours').snapshots().asyncMap((snapshot) async {
-      // Lấy từ Firebase
       List<Tour> firebaseTours = snapshot.docs.map((doc) => Tour.fromFirestore(doc)).toList();
-      
-      // Lưu vào Cache
       if (firebaseTours.isNotEmpty) {
         await _saveToursToCache(firebaseTours);
       }
-      
-      // TRẢ VỀ CẢ HAI (FIREBASE + FAKE) ĐỂ KHÔNG BỊ TRỐNG MÀN HÌNH
       return [...firebaseTours, ..._fakeTours];
     }).handleError((error) async {
-      // Nếu mất mạng hoặc lỗi, lấy từ Cache + Fake
       List<Tour> cached = await _loadToursFromCache();
       return [...cached, ..._fakeTours];
     });
@@ -93,7 +87,7 @@ class DatabaseService {
     return [];
   }
 
-  // 2. HÀM ĐẶT VÉ NÂNG CẤP
+  // 2. HÀM ĐẶT VÉ
   Future<String> bookTour(String userId, String tourId, {String? voucherCode}) async {
     if (tourId.startsWith('fake_')) return "Đặt vé tour mẫu thành công!";
 
@@ -117,7 +111,7 @@ class DatabaseService {
           'status': 'pending',
           'timestamp': FieldValue.serverTimestamp(),
           'totalPrice': finalPrice,
-          'voucherUsed': voucherCode ?? 'none',
+          'voucherCode': voucherCode ?? 'none',
         });
 
         transaction.update(tourRef, {'availableSlots': availableSlots - 1});
@@ -128,7 +122,22 @@ class DatabaseService {
     });
   }
 
+  // 3. ADMIN: THÊM TOUR
   Future<void> addTour(Tour tour) async {
     await _db.collection('tours').add(tour.toMap());
+  }
+
+  // 4. ADMIN: QUẢN LÝ BOOKINGS
+  Stream<List<Booking>> get allBookings {
+    return _db.collection('bookings')
+        .orderBy('timestamp', descending: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList();
+    });
+  }
+
+  Future<void> confirmBooking(String bookingId) async {
+    await _db.collection('bookings').doc(bookingId).update({'status': 'confirmed'});
   }
 }
