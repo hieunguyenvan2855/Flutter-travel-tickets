@@ -20,6 +20,32 @@ class HomeScreen extends StatelessWidget {
     final dbService = Provider.of<DatabaseService>(context);
     final user = Provider.of<User?>(context);
 
+    // Hàm hiển thị Dialog xác nhận đăng xuất
+    void _showLogoutDialog(BuildContext context) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Xác nhận đăng xuất'),
+            content: const Text('Bạn có chắc chắn muốn thoát khỏi ứng dụng không?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(), // Đóng dialog
+                child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () async {
+                  Navigator.of(context).pop(); // Đóng dialog
+                  await authService.signOut(); // Thực hiện đăng xuất
+                },
+                child: const Text('Đăng xuất', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -59,7 +85,7 @@ class HomeScreen extends StatelessWidget {
             ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () => authService.signOut(),
+            onPressed: () => _showLogoutDialog(context), // Gọi Dialog xác nhận
           ),
         ],
       ),
