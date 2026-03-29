@@ -1,8 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:carousel_slider/carousel_slider.dart';
-import 'package:shimmer/shimmer.dart';
+import 'package:carousel_slider/carousel_slider.dart'; // Sử dụng lại Carousel
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/tour_model.dart';
@@ -10,9 +9,21 @@ import '../../models/user_model.dart';
 import '../admin/add_tour_screen.dart';
 import '../admin/admin_booking_screen.dart';
 import 'tour_detail_screen.dart';
+import 'profile_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _selectedIndex = 0;
+  String _searchQuery = "";
+  String _selectedCategory = "Tất cả";
+
+  final List<String> _categories = ["Tất cả", "Biển đảo", "Vùng núi", "Văn hóa", "Nước ngoài"];
 
   @override
   Widget build(BuildContext context) {
@@ -20,165 +31,187 @@ class HomeScreen extends StatelessWidget {
     final dbService = Provider.of<DatabaseService>(context);
     final user = Provider.of<User?>(context);
 
-    // Hàm hiển thị Dialog xác nhận đăng xuất
-    void _showLogoutDialog(BuildContext context) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Xác nhận đăng xuất'),
-            content: const Text('Bạn có chắc chắn muốn thoát khỏi ứng dụng không?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(), // Đóng dialog
-                child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
-              ),
-              TextButton(
-                onPressed: () async {
-                  Navigator.of(context).pop(); // Đóng dialog
-                  await authService.signOut(); // Thực hiện đăng xuất
-                },
-                child: const Text('Đăng xuất', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          );
-        },
-      );
-    }
+    List<Widget> _pages = [
+      _buildExplorePage(dbService, authService, user),
+      const Center(child: Text("Danh sách vé đã đặt sẽ hiện ở đây")),
+      const ProfileScreen(),
+    ];
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Chào mừng bạn', style: TextStyle(fontSize: 14, color: Colors.white70)),
-            Text(user?.email?.split('@')[0] ?? 'Khám Phá Việt Nam',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-          ],
-        ),
-        backgroundColor: Colors.blue[900],
-        elevation: 0,
-        actions: [
-          if (user != null)
-            FutureBuilder<UserModel?>(
-              future: authService.getUserData(user.uid),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.role == 'admin') {
-                  return Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.list_alt, color: Colors.white),
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminBookingScreen())),
-                        tooltip: 'Quản lý đơn hàng',
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddTourScreen())),
-                        tooltip: 'Thêm Tour',
-                      ),
-                    ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () => _showLogoutDialog(context), // Gọi Dialog xác nhận
-          ),
+      backgroundColor: Colors.grey[50], // Nền xám nhạt cho sang trọng
+      body: _pages[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: Colors.blue[900],
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: 'Khám phá'),
+          BottomNavigationBarItem(icon: Icon(Icons.confirmation_number_outlined), activeIcon: Icon(Icons.confirmation_number), label: 'Vé của tôi'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Cá nhân'),
         ],
       ),
-      body: StreamBuilder<List<Tour>>(
-        stream: dbService.tours,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildSkeletonLoading();
-          }
-          final tours = snapshot.data ?? [];
-          final featuredTours = tours.take(3).toList();
+    );
+  }
 
-          return SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Carousel Banner cho Tour nổi bật
-                if (featuredTours.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: CarouselSlider(
-                      options: CarouselOptions(
-                        height: 200,
-                        autoPlay: true,
-                        enlargeCenterPage: true,
-                        aspectRatio: 16 / 9,
-                        viewportFraction: 0.85,
-                      ),
-                      items: featuredTours.map((tour) {
-                        return Builder(
-                          builder: (BuildContext context) {
-                            return GestureDetector(
-                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TourDetailScreen(tour: tour))),
-                              child: Container(
-                                width: MediaQuery.of(context).size.width,
-                                margin: const EdgeInsets.symmetric(horizontal: 5.0),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(15),
-                                  image: DecorationImage(
-                                    image: NetworkImage(tour.imageUrl),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(15),
-                                        gradient: LinearGradient(
-                                          begin: Alignment.bottomCenter,
-                                          end: Alignment.topCenter,
-                                          colors: [Colors.black.withOpacity(0.6), Colors.transparent],
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      bottom: 15, left: 15,
-                                      child: Text(
-                                        tour.title,
-                                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+  Widget _buildExplorePage(DatabaseService dbService, AuthService authService, User? user) {
+    return StreamBuilder<List<Tour>>(
+      stream: dbService.tours,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final allTours = snapshot.data!;
+        // Lọc danh sách tour
+        final filteredTours = allTours.where((t) {
+          final matchesSearch = t.title.toLowerCase().contains(_searchQuery) || t.location.toLowerCase().contains(_searchQuery);
+          final matchesCategory = _selectedCategory == "Tất cả" || t.location.contains(_selectedCategory.replaceAll("Vùng ", ""));
+          return matchesSearch;
+        }).toList();
+
+        // Lấy 3 tour đầu làm Spotlight
+        final spotlightTours = allTours.take(3).toList();
+
+        return CustomScrollView(
+          slivers: [
+            // 1. Header & Tìm kiếm
+            SliverAppBar(
+              expandedHeight: 130,
+              floating: true,
+              pinned: true,
+              backgroundColor: Colors.blue[900],
+              elevation: 0,
+              title: const Text('TravelVN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white)),
+              actions: [
+                if (user != null)
+                  FutureBuilder<UserModel?>(
+                    future: authService.getUserData(user.uid),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData && snapshot.data!.role == 'admin') {
+                        return IconButton(
+                          icon: const Icon(Icons.admin_panel_settings, color: Colors.white),
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminBookingScreen())),
                         );
-                      }).toList(),
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddTourScreen())),
+                ),
+              ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(60),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: TextField(
+                    onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
+                    decoration: InputDecoration(
+                      hintText: 'Bạn muốn đi đâu?',
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      fillColor: Colors.white,
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 2. Spotlight (Carousel)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+                    child: Text('Tour Nổi Bật', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  ),
+                  CarouselSlider(
+                    options: CarouselOptions(
+                      height: 200,
+                      autoPlay: true,
+                      enlargeCenterPage: true,
+                      aspectRatio: 16/9,
+                      viewportFraction: 0.85,
+                    ),
+                    items: spotlightTours.map((tour) {
+                      return GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TourDetailScreen(tour: tour))),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            image: DecorationImage(image: NetworkImage(tour.imageUrl), fit: BoxFit.cover),
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(15),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(tour.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                Text(tour.location, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  // 3. Danh mục (Filter)
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    child: Row(
+                      children: _categories.map((cat) => Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: ChoiceChip(
+                          label: Text(cat),
+                          selected: _selectedCategory == cat,
+                          onSelected: (selected) => setState(() => _selectedCategory = cat),
+                          selectedColor: Colors.blue[900],
+                          labelStyle: TextStyle(color: _selectedCategory == cat ? Colors.white : Colors.black),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      )).toList(),
                     ),
                   ),
 
-                // 2. Danh sách tất cả Tour
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  child: Text('Khám phá các điểm đến', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: tours.length,
-                  itemBuilder: (context, index) {
-                    final tour = tours[index];
-                    return _buildTourCard(context, tour);
-                  },
-                ),
-                const SizedBox(height: 20),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Text('Dành cho bạn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
-      ),
+
+            // 4. Danh sách Tour
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _buildTourCard(context, filteredTours[index]),
+                  childCount: filteredTours.length,
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 30)),
+          ],
+        );
+      },
     );
   }
 
@@ -188,8 +221,8 @@ class HomeScreen extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
           borderRadius: BorderRadius.circular(15),
+          color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
         ),
         child: Column(
@@ -197,61 +230,28 @@ class HomeScreen extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: Hero(
-                tag: 'tour-${tour.id}',
-                child: Image.network(
-                  tour.imageUrl,
-                  height: 180, width: double.infinity, fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(height: 180, color: Colors.grey[300], child: const Icon(Icons.image_not_supported)),
-                ),
-              ),
+              child: Image.network(tour.imageUrl, height: 180, width: double.infinity, fit: BoxFit.cover),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(15),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(tour.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Text('${tour.price.toInt()}đ', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
+                  Text(tour.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
-                      Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                      const Icon(Icons.location_on, size: 14, color: Colors.blue),
                       const SizedBox(width: 4),
-                      Text(tour.location, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                      Text(tour.location, style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       const Spacer(),
-                      Icon(Icons.person, size: 14, color: Colors.grey[600]),
-                      const SizedBox(width: 4),
-                      Text('Còn ${tour.availableSlots} chỗ', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                      Text('${tour.price.toInt()}đ', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
                 ],
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonLoading() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: List.generate(3, (index) => Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            height: 250,
-            width: double.infinity,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
-          )),
         ),
       ),
     );

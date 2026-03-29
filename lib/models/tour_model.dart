@@ -1,5 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class ScheduleItem {
+  final String title;
+  final String content;
+
+  ScheduleItem({required this.title, required this.content});
+
+  Map<String, dynamic> toMap() {
+    return {'title': title, 'content': content};
+  }
+
+  factory ScheduleItem.fromMap(Map<String, dynamic> map) {
+    return ScheduleItem(
+      title: map['title'] ?? '',
+      content: map['content'] ?? '',
+    );
+  }
+}
+
 class Tour {
   final String id;
   final String title;
@@ -10,8 +28,8 @@ class Tour {
   final String location;
   final GeoPoint? geoPoint;
   final String imageUrl;
-  final List<String> highlights; // Các điểm nổi bật
-  final String schedule; // Lịch trình chi tiết
+  final List<String> highlights;
+  final List<ScheduleItem> scheduleItems; // Đổi từ String sang List
 
   Tour({
     required this.id,
@@ -24,7 +42,7 @@ class Tour {
     this.geoPoint,
     required this.imageUrl,
     this.highlights = const [],
-    this.schedule = '',
+    this.scheduleItems = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -38,7 +56,7 @@ class Tour {
       'geoPoint': geoPoint,
       'imageUrl': imageUrl,
       'highlights': highlights,
-      'schedule': schedule,
+      'scheduleItems': scheduleItems.map((item) => item.toMap()).toList(),
     };
   }
 
@@ -55,7 +73,9 @@ class Tour {
       geoPoint: data['geoPoint'],
       imageUrl: data['imageUrl'] ?? '',
       highlights: List<String>.from(data['highlights'] ?? []),
-      schedule: data['schedule'] ?? '',
+      scheduleItems: (data['scheduleItems'] as List? ?? [])
+          .map((item) => ScheduleItem.fromMap(Map<String, dynamic>.from(item)))
+          .toList(),
     );
   }
 }
