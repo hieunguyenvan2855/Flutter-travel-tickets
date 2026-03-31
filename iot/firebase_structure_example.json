@@ -1,0 +1,54 @@
+{
+  "tours": {
+    "tour_001": {
+      "id": "tour_001",
+      "title": "Hạ Long Bay Tour - 2 Days",
+      "description": "Khám phá vịnh Hạ Long tuyệt đẹp",
+      "price": 2500000,
+      "location": "Quảng Ninh",
+      "imageUrl": "https://...",
+      "totalSlots": 30,
+      "availableSlots": 25,
+      "status": "started",
+      "announcement_timestamp": "2024-03-30T10:30:00Z",
+      "announced": true
+    },
+    "tour_002": {
+      "id": "tour_002",
+      "title": "Sapa Mountain Tour - 3 Days",
+      "description": "Trekking qua những ngôi làng thiểu số",
+      "price": 3200000,
+      "location": "Lào Cai",
+      "status": "active",
+      "announced": false
+    }
+  },
+  "announcements": {
+    "tour_001": {
+      "-xxx123abc": {
+        "timestamp": "2024-03-30T10:30:00Z",
+        "tour_title": "Hạ Long Bay Tour",
+        "status": "success",
+        "triggered_by": "admin_app",
+        "device_id": "esp32_venue_001"
+      },
+      "-xxx456def": {
+        "timestamp": "2024-03-29T14:15:00Z",
+        "tour_title": "Hạ Long Bay Tour",
+        "status": "success",
+        "triggered_by": "python_controller"
+      }
+    }
+  },
+  "esp32": {
+    "venue_001": {
+      "status": "connected",
+      "ip_address": "192.168.1.100",
+      "last_heartbeat": "2024-03-30T10:35:45Z",
+      "battery_level": 100,
+      "wifi_signal": -45,
+      "firmware_version": "1.0.0",
+      "location": "Tòa nhà A - Hà Nội"
+    }
+  }
+}

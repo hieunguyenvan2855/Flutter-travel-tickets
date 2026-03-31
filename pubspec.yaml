@@ -28,10 +28,12 @@ dependencies:
   shared_preferences: ^2.2.2
   http: ^1.1.0
   image_picker: ^1.0.4
+  flutter_svg: ^2.0.0
   
   # Location & Maps
   geolocator: ^10.1.0
   google_maps_flutter: ^2.5.0
+  url_launcher: ^6.2.0
   
   # UI & Helpers
   intl: ^0.18.1
@@ -45,3 +47,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/images/zalo_logo.svg
+    - assets/images/messenger_logo.svg

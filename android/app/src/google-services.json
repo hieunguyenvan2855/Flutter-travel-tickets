@@ -1,0 +1,41 @@
+{
+  "project_info": {
+    "project_number": "625886238811",
+    "firebase_url": "https://qldl-2b875.firebaseio.com",
+    "project_id": "qldl-2b875",
+    "storage_bucket": "qldl-2b875.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:625886238811:android:83ad8476b8de59565b477e",
+        "android_client_info": {
+          "package_name": "com.example.cuoiki"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "625886238811-abcdefghijklmnopqrstuvwxyz123456.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATPnmy3pasEoRXV7LtH6rpCnIUWixHjl8"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "analytics_console_integration_enabled": true
+        },
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
