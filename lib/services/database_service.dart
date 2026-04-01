@@ -42,7 +42,7 @@ class DatabaseService {
         ScheduleItem(title: 'Ngày 5: Las Vegas - Grand Canyon', content: 'Khám phá đại vực Grand Canyon hùng vĩ. Trải nghiệm casino tại Las Vegas.'),
         ScheduleItem(title: 'Ngày 6: Las Vegas - Los Angeles - Quận Cam', content: 'Tham quan Little Saigon. Ăn sáng, trưa, tối đầy đủ.'),
         ScheduleItem(title: 'Ngày 7: Los Angeles - San Diego - Los Angeles', content: 'Tham quan hạm đội Thái Bình Dương, công viên Balboa.'),
-        ScheduleItem(title: 'Ngày 8: Los Angeles - Hollywood -> Tp. Hồ Chí Minh', content: 'Tham quan Đại lộ Danh vọng, Nhà hát Dolby. Ra sân bay về Việt Nam.'),
+        ScheduleItem(title: 'Ngày 8: Los Angeles - Hollywood -> Tp. Hồ Chí Minh', content: 'Tham quan Đại lộ Danh vọng, nhà hát Dolby. Ra sân bay về Việt Nam.'),
       ],
     ),
   ];
@@ -54,55 +54,52 @@ class DatabaseService {
     });
   }
 
-  Future<void> _saveToursToCache(List<Tour> tours) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<Map<String, dynamic>> tourList = tours.map((t) => t.toMap()).toList();
-    await prefs.setString(TOUR_CACHE_KEY, json.encode(tourList));
-  }
+  Future<String> bookTour(String userId, String tourId, {String? voucherCode}) async {
+    if (tourId.startsWith('fake_')) {
+      final fakeTour = _fakeTours.firstWhere((t) => t.id == tourId, orElse: () => _fakeTours.first);
+      double finalPrice = fakeTour.price;
+      if (voucherCode == 'GIAM10') finalPrice = finalPrice * 0.9;
 
-  Future<List<Tour>> _loadToursFromCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    String? cachedData = prefs.getString(TOUR_CACHE_KEY);
-    if (cachedData != null) {
-      Iterable decoded = json.decode(cachedData);
-      return decoded.map((t) => Tour.fromFirestore(t as DocumentSnapshot)).toList(); // Đơn giản hóa để fix
+      await _db.collection('bookings').add({
+        'userId': userId,
+        'tourId': tourId,
+        'tourName': fakeTour.title,
+        'tickets': 1,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'totalPrice': finalPrice,
+        'isReviewed': false,
+      });
+      return "Đặt vé thành công!";
     }
-    return [];
+
+    DocumentReference tourRef = _db.collection('tours').doc(tourId);
+    return _db.runTransaction((transaction) async {
+      DocumentSnapshot tourSnapshot = await transaction.get(tourRef);
+      double basePrice = (tourSnapshot.get('price') as num).toDouble();
+      String tourName = tourSnapshot.get('title');
+
+      DocumentReference bookingRef = _db.collection('bookings').doc();
+      transaction.set(bookingRef, {
+        'userId': userId,
+        'tourId': tourId,
+        'tourName': tourName,
+        'tickets': 1,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'totalPrice': basePrice,
+        'isReviewed': false,
+      });
+      return "Đặt vé thành công!";
+    });
   }
 
   Stream<List<Booking>> get allBookings {
-    return _db.collection('bookings').orderBy('timestamp', descending: true).snapshots().map((snapshot) => snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList());
+    return _db.collection('bookings').orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList());
   }
 
   Future<void> confirmBooking(String bookingId) async {
     await _db.collection('bookings').doc(bookingId).update({'status': 'confirmed'});
-  }
-
-  Future<String> bookTour(String userId, String tourId, {String? voucherCode}) async {
-    if (tourId.startsWith('fake_')) return "Đặt vé tour mẫu thành công!";
-    DocumentReference tourRef = _db.collection('tours').doc(tourId);
-    DocumentReference bookingRef = _db.collection('bookings').doc();
-    return _db.runTransaction((transaction) async {
-      DocumentSnapshot tourSnapshot = await transaction.get(tourRef);
-      int availableSlots = tourSnapshot.get('availableSlots');
-      double basePrice = (tourSnapshot.get('price') as num).toDouble();
-      if (availableSlots > 0) {
-        double finalPrice = basePrice;
-        if (voucherCode == 'GIAM10') finalPrice = basePrice * 0.9;
-        transaction.set(bookingRef, {
-          'userId': userId,
-          'tourId': tourId,
-          'status': 'pending',
-          'timestamp': FieldValue.serverTimestamp(),
-          'totalPrice': finalPrice,
-          'voucherUsed': voucherCode ?? 'none',
-        });
-        transaction.update(tourRef, {'availableSlots': availableSlots - 1});
-        return "Đặt vé thành công! Tổng tiền: $finalPriceđ";
-      } else {
-        throw Exception("Hết chỗ!");
-      }
-    });
   }
 
   Future<void> addTour(Tour tour) async {

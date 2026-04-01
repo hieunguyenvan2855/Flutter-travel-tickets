@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // Đã thêm thư viện Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/database_service.dart';
 import '../../models/user_model.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 
@@ -16,8 +17,7 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Hồ sơ cá nhân', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
         elevation: 0,
@@ -25,16 +25,12 @@ class ProfileScreen extends StatelessWidget {
       body: FutureBuilder<UserModel?>(
         future: user != null ? authService.getUserData(user.uid) : null,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           final userData = snapshot.data;
 
           return SingleChildScrollView(
             child: Column(
               children: [
-                // Phần Header (Giữ nguyên)
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
@@ -54,46 +50,25 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 15),
                       Text(
-                        userData?.name ?? 'Khách hàng',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold),
+                        userData?.name ?? user?.email?.split('@')[0] ?? 'Khách hàng',
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                       ),
-                      Text(
-                        userData?.email ?? '',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 16),
-                      ),
+                      Text(userData?.email ?? '', style: const TextStyle(color: Colors.white70, fontSize: 16)),
                       const SizedBox(height: 30),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Phần Menu các chức năng (Giữ nguyên, chỉ sửa đường dẫn onTap của nút đầu tiên)
                 Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      _buildProfileItem(Icons.history, 'Lịch sử chuyến đi', () {
-                        // Đã thêm lệnh chuyển hướng sang màn hình Lịch sử (Task 3.2)
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) =>
-                                    const BookingHistoryScreen()));
+                      _buildProfileItem(Icons.history, 'Vé của tôi', () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
                       }),
-                      _buildProfileItem(
-                          Icons.favorite_border, 'Tour đã lưu', () {}),
-                      _buildProfileItem(
-                          Icons.settings, 'Cài đặt tài khoản', () {}),
-                      _buildProfileItem(
-                          Icons.help_outline, 'Hỗ trợ khách hàng', () {}),
+                      _buildProfileItem(Icons.favorite_border, 'Tour đã lưu', () {}),
+                      _buildProfileItem(Icons.settings, 'Cài đặt tài khoản', () {}),
                       const Divider(height: 40),
-                      _buildProfileItem(Icons.logout, 'Đăng xuất',
-                          () => _showLogoutDialog(context, authService),
-                          color: Colors.red),
+                      _buildProfileItem(Icons.logout, 'Đăng xuất', () => authService.signOut(), color: Colors.red),
                     ],
                   ),
                 ),
@@ -105,8 +80,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileItem(IconData icon, String title, VoidCallback onTap,
-      {Color? color}) {
+  Widget _buildProfileItem(IconData icon, String title, VoidCallback onTap, {Color? color}) {
     return ListTile(
       leading: Icon(icon, color: color ?? Colors.blue[900]),
       title: Text(title, style: TextStyle(fontSize: 16, color: color)),
@@ -114,40 +88,31 @@ class ProfileScreen extends StatelessWidget {
       onTap: onTap,
     );
   }
-
-  void _showLogoutDialog(BuildContext context, AuthService authService) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Xác nhận đăng xuất'),
-          content:
-              const Text('Bạn có chắc chắn muốn thoát khỏi ứng dụng không?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Hủy'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await authService.signOut();
-              },
-              child:
-                  const Text('Đăng xuất', style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 
 // =========================================================================
-// TASK 3.2 & 3.3: MÀN HÌNH LỊCH SỬ ĐẶT VÉ (CÓ 2 TAB)
+// TASK 3.2 & 3.3: MÀN HÌNH LỊCH SỬ ĐẶT VÉ (CÓ CỘNG TRỪ SỐ VÉ)
 // =========================================================================
 class BookingHistoryScreen extends StatelessWidget {
   const BookingHistoryScreen({super.key});
+
+  // HÀM MỚI: XỬ LÝ NÚT CỘNG/TRỪ SỐ LƯỢNG VÉ TRỰC TIẾP TRÊN FIREBASE
+  Future<void> _updateTicketCount(String docId, int currentTickets, num currentTotal, int change) async {
+    int newTickets = currentTickets + change;
+
+    // Bắt lỗi: Không cho phép giảm xuống dưới 1 vé
+    if (newTickets < 1) return;
+
+    // Tính ra giá gốc của 1 vé, sau đó nhân với số vé mới
+    double unitPrice = currentTotal / currentTickets;
+    double newTotal = unitPrice * newTickets;
+
+    // Lệnh Update thẳng lên Firebase. StreamBuilder sẽ tự động làm mới giao diện!
+    await FirebaseFirestore.instance.collection('bookings').doc(docId).update({
+      'tickets': newTickets,
+      'totalPrice': newTotal,
+    });
+  }
 
   // HÀM HIỂN THỊ POPUP ĐÁNH GIÁ (TASK 3.3)
   void _showReviewBottomSheet(BuildContext context, String tourId, String bookingDocId) {
@@ -160,10 +125,7 @@ class BookingHistoryScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 20, right: 20, top: 24
-          ),
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 30, left: 20, right: 20, top: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -178,36 +140,23 @@ class BookingHistoryScreen extends StatelessWidget {
               const SizedBox(height: 20),
               TextField(
                 controller: commentController, maxLines: 3,
-                decoration: InputDecoration(
-                    hintText: "Hãy chia sẻ trải nghiệm của bạn...",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))
-                ),
+                decoration: InputDecoration(hintText: "Hãy chia sẻ trải nghiệm của bạn...", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity, height: 50,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[900],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                   onPressed: () async {
                     final user = FirebaseAuth.instance.currentUser;
                     if (user != null) {
-                      // 1. Lưu đánh giá vào bảng reviews
                       await FirebaseFirestore.instance.collection('reviews').add({
-                        'tourId': tourId,
-                        'userId': user.uid,
-                        'userName': user.displayName ?? user.email ?? "Khách hàng",
-                        'rating': ratingValue,
-                        'comment': commentController.text,
-                        'createdAt': FieldValue.serverTimestamp(),
+                        'tourId': tourId, 'userId': user.uid, 'userName': user.displayName ?? user.email ?? "Khách hàng",
+                        'rating': ratingValue, 'comment': commentController.text, 'createdAt': FieldValue.serverTimestamp(),
                       });
-                      // 2. Cập nhật trạng thái vé là đã đánh giá
                       await FirebaseFirestore.instance.collection('bookings').doc(bookingDocId).update({'isReviewed': true});
-
                       if (context.mounted) {
-                        Navigator.pop(context); // Đóng popup
+                        Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cảm ơn bạn đã đánh giá!'), backgroundColor: Colors.green));
                       }
                     }
@@ -256,7 +205,7 @@ class BookingHistoryScreen extends StatelessWidget {
     }
 
     return DefaultTabController(
-      length: 2, // 2 Tab: Chưa thanh toán & Đã thanh toán
+      length: 2,
       child: Scaffold(
         backgroundColor: Colors.grey[100],
         appBar: AppBar(
@@ -282,15 +231,9 @@ class BookingHistoryScreen extends StatelessWidget {
               .orderBy('createdAt', descending: true)
               .snapshots(),
           builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return _buildEmptyState();
 
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return _buildEmptyState();
-            }
-
-            // TÁCH DỮ LIỆU THÀNH 2 DANH SÁCH CHO 2 TAB
             final allBookings = snapshot.data!.docs;
             final pendingBookings = allBookings.where((doc) => (doc.data() as Map<String, dynamic>)['status'] == 'pending').toList();
             final paidBookings = allBookings.where((doc) {
@@ -345,13 +288,37 @@ class BookingHistoryScreen extends StatelessWidget {
                   ],
                 ),
                 const Divider(height: 24),
+
+                // --- ĐOẠN ĐƯỢC NÂNG CẤP: GIAO DIỆN CỘNG TRỪ SỐ VÉ ---
                 Row(
                   children: [
                     const Icon(Icons.confirmation_num_outlined, size: 16, color: Colors.grey),
                     const SizedBox(width: 8),
-                    Text('Số vé: ${data['tickets']} vé'),
+                    const Text('Số vé: '),
+                    // Nếu ở tab "Chưa thanh toán", hiện nút cộng trừ
+                    if (isPendingTab) ...[
+                      IconButton(
+                        padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                        onPressed: () => _updateTicketCount(docId, data['tickets'], data['totalPrice'], -1),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('${data['tickets']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                        onPressed: () => _updateTicketCount(docId, data['tickets'], data['totalPrice'], 1),
+                      ),
+                    ]
+                    // Nếu ở tab "Đã thanh toán", chỉ hiện chữ tĩnh
+                    else ...[
+                      Text('${data['tickets']} vé', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
                   ],
                 ),
+                // ----------------------------------------------------
+
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -364,7 +331,6 @@ class BookingHistoryScreen extends StatelessWidget {
                       ],
                     ),
 
-                    // NÚT CHỨC NĂNG THEO TỪNG TAB
                     if (isPendingTab)
                       Row(
                         children: [
@@ -375,7 +341,6 @@ class BookingHistoryScreen extends StatelessWidget {
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
                             onPressed: () {
-                              // Nhảy sang trang Thanh toán
                               Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreen(bookingData: data, docId: docId)));
                             },
                             child: const Text('Thanh toán', style: TextStyle(color: Colors.white, fontSize: 13)),
@@ -419,9 +384,8 @@ class BookingHistoryScreen extends StatelessWidget {
     );
   }
 }
-
 // =========================================================================
-// MÀN HÌNH THANH TOÁN ONLINE (MỚI THÊM)
+// MÀN HÌNH THANH TOÁN ONLINE (ĐÃ NÂNG CẤP FORM VÀ NGÂN HÀNG)
 // =========================================================================
 class PaymentScreen extends StatefulWidget {
   final Map<String, dynamic> bookingData;
@@ -436,11 +400,31 @@ class PaymentScreen extends StatefulWidget {
 class _PaymentScreenState extends State<PaymentScreen> {
   String _selectedPaymentMethod = 'Tiền mặt';
 
+  // Các biến để hứng dữ liệu người dùng nhập vào
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Tự động điền sẵn nếu lúc đặt vé đã có sdt/email trên Firebase
+    _phoneController.text = widget.bookingData['phone'] ?? '';
+    _emailController.text = widget.bookingData['email'] ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.bookingData;
 
-    // Xử lý hiển thị ngày giờ đẹp mắt
     String bookingDate = "Chưa cập nhật";
     if (data['createdAt'] != null) {
       try {
@@ -462,6 +446,58 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // =====================================================
+            // 1. FORM ĐIỀN THÔNG TIN KHÁCH HÀNG
+            // =====================================================
+            const Text('Thông tin người đặt', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Họ và tên',
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Số điện thoại',
+                        prefixIcon: const Icon(Icons.phone),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Email liên hệ',
+                        prefixIcon: const Icon(Icons.email),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // =====================================================
+            // 2. CHI TIẾT GIAO DỊCH
+            // =====================================================
             const Text('Chi tiết giao dịch', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Card(
@@ -475,13 +511,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     const Divider(),
                     _buildInfoRow('Ngày đặt:', bookingDate),
                     const Divider(),
-                    _buildInfoRow('Số điện thoại:', data['phone'] ?? 'Chưa cung cấp'),
-                    const Divider(),
-                    _buildInfoRow('Email:', data['email'] ?? 'Chưa cung cấp'),
-                    const Divider(),
                     _buildInfoRow('Số lượng vé:', '${data['tickets']} vé'),
-                    const Divider(),
-                    _buildInfoRow('Mã Voucher:', data['voucher'] ?? 'Không dùng'),
                     const Divider(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -499,6 +529,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             ),
             const SizedBox(height: 24),
 
+            // =====================================================
+            // 3. PHƯƠNG THỨC THANH TOÁN
+            // =====================================================
             const Text('Chọn phương thức thanh toán', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Card(
@@ -508,7 +541,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 children: [
                   RadioListTile(
                     title: const Text('Thanh toán tiền mặt'),
-                    subtitle: const Text('Thanh toán trực tiếp tại văn phòng'),
                     value: 'Tiền mặt',
                     groupValue: _selectedPaymentMethod,
                     activeColor: Colors.blue[900],
@@ -516,15 +548,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
                   RadioListTile(
                     title: const Text('Chuyển khoản ngân hàng'),
-                    subtitle: const Text('Quét mã QR qua ứng dụng ngân hàng'),
                     value: 'Chuyển khoản',
-                    groupValue: _selectedPaymentMethod,
-                    activeColor: Colors.blue[900],
-                    onChanged: (val) => setState(() => _selectedPaymentMethod = val.toString()),
-                  ),
-                  RadioListTile(
-                    title: const Text('Ví điện tử Momo / ZaloPay'),
-                    value: 'Ví điện tử',
                     groupValue: _selectedPaymentMethod,
                     activeColor: Colors.blue[900],
                     onChanged: (val) => setState(() => _selectedPaymentMethod = val.toString()),
@@ -532,14 +556,57 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ],
               ),
             ),
+
+            // =====================================================
+            // 4. HIỂN THỊ MẪU NGÂN HÀNG (CHỈ KHI CHỌN CHUYỂN KHOẢN)
+            // =====================================================
+            if (_selectedPaymentMethod == 'Chuyển khoản')
+              Container(
+                margin: const EdgeInsets.only(top: 16, bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue.shade200, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.account_balance, color: Colors.blue[900]),
+                        const SizedBox(width: 8),
+                        Text('Thông tin chuyển khoản', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue[900])),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    _buildBankInfoRow('Ngân hàng:', 'Vietcombank (VCB)'),
+                    _buildBankInfoRow('Số tài khoản:', '0123 4567 8999'),
+                    _buildBankInfoRow('Chủ tài khoản:', 'NGUYEN TAI TAN'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(5)),
+                      child: Text('Nội dung: Thanh toan ve ${widget.docId.substring(0, 5)}',
+                          style: const TextStyle(fontStyle: FontStyle.italic, fontWeight: FontWeight.bold, color: Colors.red)
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
+
+      // =====================================================
+      // 5. NÚT XÁC NHẬN
+      // =====================================================
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.grey.shade200, blurRadius: 10, offset: const Offset(0, -3))],
+          boxShadow: [BoxShadow(color: Colors.grey.shade300, blurRadius: 10, offset: const Offset(0, -3))],
         ),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -548,11 +615,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: () async {
-            // Lệnh cập nhật trạng thái đơn hàng lên Firebase thành 'paid'
+            // Bắt lỗi nếu khách không điền thông tin
+            if (_nameController.text.trim().isEmpty || _phoneController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Vui lòng điền Họ tên và Số điện thoại!'), backgroundColor: Colors.red),
+              );
+              return;
+            }
+
+            // Lưu dữ liệu thông tin khách hàng và cập nhật status lên Firebase
             await FirebaseFirestore.instance.collection('bookings').doc(widget.docId).update({
               'status': 'paid',
               'paymentMethod': _selectedPaymentMethod,
-              'paidAt': FieldValue.serverTimestamp(), // Lưu lại thời gian thanh toán
+              'customerName': _nameController.text.trim(),
+              'customerPhone': _phoneController.text.trim(),
+              'customerEmail': _emailController.text.trim(),
             });
 
             if (context.mounted) {
@@ -562,24 +639,35 @@ class _PaymentScreenState extends State<PaymentScreen> {
               );
             }
           },
-          child: const Text('XÁC NHẬN THANH TOÁN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
+          child: const Text('XÁC NHẬN THANH TOÁN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
         ),
       ),
     );
   }
 
+  // Widget hỗ trợ vẽ dòng chữ Thông tin Giao dịch
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14), textAlign: TextAlign.right),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14), textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+
+  // Widget hỗ trợ vẽ dòng chữ Thông tin Ngân hàng
+  Widget _buildBankInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: Colors.black54))),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87))),
         ],
       ),
     );
