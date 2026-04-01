@@ -17,32 +17,12 @@ class DatabaseService {
       totalSlots: 15,
       availableSlots: 12,
       location: 'Quảng Ninh',
+      category: 'Biển đảo',
       imageUrl: 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=1200',
       highlights: ['Du thuyền hạng sang', 'Thăm hang Sửng Sốt'],
       scheduleItems: [
-        ScheduleItem(title: 'Ngày 1: Hà Nội - Tuần Châu - Vịnh Lan Hạ', content: '12:00: Làm thủ tục lên tàu.\n13:30: Ăn trưa tại nhà hàng.\n15:00: Thăm quan Trà Báu, chèo thuyền Kayak.\n18:00: Tiệc trà chiều ngắm hoàng hôn.'),
-        ScheduleItem(title: 'Ngày 2: Hang Sáng Tối - Hà Nội', content: '06:30: Tập Thái Cực Quyền.\n07:30: Thăm hang Sáng Tối bằng thuyền nan.\n10:00: Thưởng thức bữa trưa sớm trước khi về bến.'),
-      ],
-    ),
-    Tour(
-      id: 'fake_usa',
-      title: 'Liên Tuyến Đông - Tây Hoa Kỳ',
-      description: 'Hành trình khám phá các thành phố biểu tượng của nước Mỹ: New York, Philadelphia, Washington DC, Las Vegas, Los Angeles.',
-      price: 97900000,
-      totalSlots: 10,
-      availableSlots: 5,
-      location: 'Hoa Kỳ',
-      imageUrl: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?q=80&w=1200',
-      highlights: ['Trải nghiệm Show thực cảnh', 'Thăm Tòa Nhà Quốc Hội Mỹ', 'Khám phá Grand Canyon'],
-      scheduleItems: [
-        ScheduleItem(title: 'Ngày 1: Tp. Hồ Chí Minh -> New York', content: 'Ăn theo tiêu chuẩn trên máy bay. Làm thủ tục nhập cảnh Mỹ.'),
-        ScheduleItem(title: 'Ngày 2: New York', content: 'Tham quan Tượng Nữ Thần Tự Do, Quảng trường Thời Đại (Times Square). Ăn trưa, tối tại nhà hàng.'),
-        ScheduleItem(title: 'Ngày 3: New York - Philadelphia - Washington DC', content: 'Tham quan Chuông Tự Do, Xưởng đúc tiền. Di chuyển về thủ đô Washington DC.'),
-        ScheduleItem(title: 'Ngày 4: Thủ đô Washington -> Los Angeles', content: 'Thăm Nhà Trắng (White House), Đài tưởng niệm Lincoln. Bay sang Los Angeles.'),
-        ScheduleItem(title: 'Ngày 5: Las Vegas - Grand Canyon', content: 'Khám phá đại vực Grand Canyon hùng vĩ. Trải nghiệm casino tại Las Vegas.'),
-        ScheduleItem(title: 'Ngày 6: Las Vegas - Los Angeles - Quận Cam', content: 'Tham quan Little Saigon. Ăn sáng, trưa, tối đầy đủ.'),
-        ScheduleItem(title: 'Ngày 7: Los Angeles - San Diego - Los Angeles', content: 'Tham quan hạm đội Thái Bình Dương, công viên Balboa.'),
-        ScheduleItem(title: 'Ngày 8: Los Angeles - Hollywood -> Tp. Hồ Chí Minh', content: 'Tham quan Đại lộ Danh vọng, nhà hát Dolby. Ra sân bay về Việt Nam.'),
+        ScheduleItem(title: 'Ngày 1: Hà Nội - Tuần Châu', content: 'Đón khách, lên tàu ăn trưa.'),
+        ScheduleItem(title: 'Ngày 2: Vịnh Lan Hạ', content: 'Thăm hang Sáng Tối.'),
       ],
     ),
   ];
@@ -54,55 +34,82 @@ class DatabaseService {
     });
   }
 
-  Future<String> bookTour(String userId, String tourId, {String? voucherCode}) async {
-    if (tourId.startsWith('fake_')) {
-      final fakeTour = _fakeTours.firstWhere((t) => t.id == tourId, orElse: () => _fakeTours.first);
-      double finalPrice = fakeTour.price;
-      if (voucherCode == 'GIAM10') finalPrice = finalPrice * 0.9;
+  Stream<List<Booking>> getUserBookings(String uid) {
+    return _db.collection('bookings')
+        .where('userId', isEqualTo: uid)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList());
+  }
 
-      await _db.collection('bookings').add({
-        'userId': userId,
-        'tourId': tourId,
-        'tourName': fakeTour.title,
-        'tickets': 1,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'totalPrice': finalPrice,
-        'isReviewed': false,
-      });
-      return "Đặt vé thành công!";
-    }
-
-    DocumentReference tourRef = _db.collection('tours').doc(tourId);
-    return _db.runTransaction((transaction) async {
-      DocumentSnapshot tourSnapshot = await transaction.get(tourRef);
-      double basePrice = (tourSnapshot.get('price') as num).toDouble();
-      String tourName = tourSnapshot.get('title');
-
-      DocumentReference bookingRef = _db.collection('bookings').doc();
-      transaction.set(bookingRef, {
-        'userId': userId,
-        'tourId': tourId,
-        'tourName': tourName,
-        'tickets': 1,
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'totalPrice': basePrice,
-        'isReviewed': false,
-      });
-      return "Đặt vé thành công!";
+  Future<void> confirmPayment(String bookingId) async {
+    await _db.collection('bookings').doc(bookingId).update({
+      'status': 'paid',
+      'paidAt': FieldValue.serverTimestamp(),
     });
   }
 
-  Stream<List<Booking>> get allBookings {
-    return _db.collection('bookings').orderBy('createdAt', descending: true).snapshots().map((snapshot) => snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList());
+  // FIXED: Added missing confirmBooking method for Admin
+  Future<void> confirmBooking(String bookingId) async {
+    await _db.collection('bookings').doc(bookingId).update({
+      'status': 'confirmed',
+      'confirmedAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<void> confirmBooking(String bookingId) async {
-    await _db.collection('bookings').doc(bookingId).update({'status': 'confirmed'});
+  Future<String> bookTour(String userId, String tourId, {String? voucherCode}) async {
+    String tourName = "Tour Du Lịch";
+    double basePrice = 0;
+
+    if (tourId.startsWith('fake_')) {
+      final fake = _fakeTours.firstWhere((t) => t.id == tourId);
+      tourName = fake.title;
+      basePrice = fake.price;
+    } else {
+      final doc = await _db.collection('tours').doc(tourId).get();
+      tourName = doc.get('title') ?? "Tour không tên";
+      basePrice = (doc.get('price') ?? 0 as num).toDouble();
+    }
+
+    double finalPrice = basePrice;
+    if (voucherCode == 'GIAM10') finalPrice *= 0.9;
+
+    await _db.collection('bookings').add({
+      'userId': userId,
+      'tourId': tourId,
+      'tourName': tourName,
+      'tickets': 1,
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+      'totalPrice': finalPrice,
+      'isReviewed': false,
+    });
+    
+    return "Đặt vé thành công!";
+  }
+
+  // --- ADMIN OPERATIONS ---
+  Stream<List<Booking>> get allBookings {
+    return _db.collection('bookings').snapshots().map((snapshot) => snapshot.docs.map((doc) => Booking.fromFirestore(doc)).toList());
   }
 
   Future<void> addTour(Tour tour) async {
     await _db.collection('tours').add(tour.toMap());
+  }
+
+  Future<void> saveCheckIn({
+    required String userId,
+    required String tourId,
+    required double currentLat,
+    required double currentLng,
+    required double destLat,
+    required double destLng,
+    required double distance,
+  }) async {
+    await _db.collection('checkins').add({
+      'userId': userId,
+      'tourId': tourId,
+      'timestamp': FieldValue.serverTimestamp(),
+      'distance': distance,
+    });
   }
 }

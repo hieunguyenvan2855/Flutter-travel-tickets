@@ -21,7 +21,10 @@ class _AddTourScreenState extends State<AddTourScreen> {
   final _priceController = TextEditingController();
   final _slotsController = TextEditingController();
   final _locationController = TextEditingController();
-  final _scheduleController = TextEditingController(); // Đây là nội dung lịch trình Admin nhập vào
+  final _scheduleController = TextEditingController(); 
+  
+  String _selectedCategory = "Biển đảo";
+  final List<String> _categories = ["Biển đảo", "Vùng núi", "Văn hóa", "Nước ngoài"];
 
   File? _imageFile;
   bool _isLoading = false;
@@ -46,14 +49,14 @@ class _AddTourScreenState extends State<AddTourScreen> {
       String? imageUrl = await cloudinary.uploadImage(_imageFile!.path);
 
       if (imageUrl != null) {
-        // Chuyển đổi nội dung schedule từ text sang List<ScheduleItem> đơn giản
-        // Mặc định cho toàn bộ nội dung vào Ngày 1
         final scheduleItems = [
           ScheduleItem(title: 'Lịch trình chi tiết', content: _scheduleController.text)
         ];
 
+        // ĐÃ FIX: Cung cấp category và đảm bảo đúng tham số model Tour
         final tour = Tour(
           id: '',
+          category: _selectedCategory, 
           title: _titleController.text,
           description: _descController.text,
           price: double.parse(_priceController.text),
@@ -61,7 +64,7 @@ class _AddTourScreenState extends State<AddTourScreen> {
           availableSlots: int.parse(_slotsController.text),
           location: _locationController.text,
           imageUrl: imageUrl,
-          scheduleItems: scheduleItems, // Cập nhật để khớp với Model mới
+          scheduleItems: scheduleItems,
           highlights: ['Mới cập nhật', 'Tour hấp dẫn'],
         );
 
@@ -78,7 +81,7 @@ class _AddTourScreenState extends State<AddTourScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Thêm Tour Mới')),
+      appBar: AppBar(title: const Text('Thêm Tour Mới'), backgroundColor: Colors.blue[900], foregroundColor: Colors.white),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
@@ -91,20 +94,37 @@ class _AddTourScreenState extends State<AddTourScreen> {
                     onTap: _pickImage,
                     child: Container(
                       height: 200, width: double.infinity,
-                      color: Colors.grey[200],
+                      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(15)),
                       child: _imageFile == null 
                         ? const Icon(Icons.add_a_photo, size: 50) 
-                        : Image.file(_imageFile!, fit: BoxFit.cover),
+                        : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_imageFile!, fit: BoxFit.cover)),
                     ),
                   ),
-                  TextFormField(controller: _titleController, decoration: const InputDecoration(labelText: 'Tên Tour')),
-                  TextFormField(controller: _priceController, decoration: const InputDecoration(labelText: 'Giá vé'), keyboardType: TextInputType.number),
-                  TextFormField(controller: _slotsController, decoration: const InputDecoration(labelText: 'Số chỗ'), keyboardType: TextInputType.number),
-                  TextFormField(controller: _locationController, decoration: const InputDecoration(labelText: 'Địa điểm')),
-                  TextFormField(controller: _descController, decoration: const InputDecoration(labelText: 'Mô tả ngắn'), maxLines: 2),
-                  TextFormField(controller: _scheduleController, decoration: const InputDecoration(labelText: 'Nội dung lịch trình'), maxLines: 5),
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    decoration: const InputDecoration(labelText: 'Danh mục tour', border: OutlineInputBorder()),
+                    items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                    onChanged: (val) => setState(() => _selectedCategory = val!),
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(controller: _titleController, decoration: const InputDecoration(labelText: 'Tên Tour', border: OutlineInputBorder())),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Expanded(child: TextFormField(controller: _priceController, decoration: const InputDecoration(labelText: 'Giá vé', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                      const SizedBox(width: 15),
+                      Expanded(child: TextFormField(controller: _slotsController, decoration: const InputDecoration(labelText: 'Số chỗ', border: OutlineInputBorder()), keyboardType: TextInputType.number)),
+                    ],
+                  ),
+                  const SizedBox(height: 15),
+                  TextFormField(controller: _locationController, decoration: const InputDecoration(labelText: 'Địa điểm', border: OutlineInputBorder())),
+                  const SizedBox(height: 15),
+                  TextFormField(controller: _descController, decoration: const InputDecoration(labelText: 'Mô tả ngắn', border: OutlineInputBorder()), maxLines: 2),
+                  const SizedBox(height: 15),
+                  TextFormField(controller: _scheduleController, decoration: const InputDecoration(labelText: 'Lịch trình', border: OutlineInputBorder()), maxLines: 4),
                   const SizedBox(height: 30),
-                  ElevatedButton(onPressed: _saveTour, child: const Text('LƯU TOUR')),
+                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900]), onPressed: _saveTour, child: const Text('LƯU TOUR', style: TextStyle(color: Colors.white)))),
                 ],
               ),
             ),

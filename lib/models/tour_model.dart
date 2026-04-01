@@ -26,10 +26,11 @@ class Tour {
   final int totalSlots;
   final int availableSlots;
   final String location;
+  final String category; // Đã thêm trường category
   final GeoPoint? geoPoint;
   final String imageUrl;
   final List<String> highlights;
-  final List<ScheduleItem> scheduleItems; // Đổi từ String sang List
+  final List<ScheduleItem> scheduleItems;
 
   Tour({
     required this.id,
@@ -39,6 +40,7 @@ class Tour {
     required this.totalSlots,
     required this.availableSlots,
     required this.location,
+    required this.category,
     this.geoPoint,
     required this.imageUrl,
     this.highlights = const [],
@@ -53,6 +55,7 @@ class Tour {
       'totalSlots': totalSlots,
       'availableSlots': availableSlots,
       'location': location,
+      'category': category,
       'geoPoint': geoPoint,
       'imageUrl': imageUrl,
       'highlights': highlights,
@@ -70,6 +73,7 @@ class Tour {
       totalSlots: data['totalSlots'] ?? 0,
       availableSlots: data['availableSlots'] ?? 0,
       location: data['location'] ?? '',
+      category: data['category'] ?? 'Chưa phân loại',
       geoPoint: data['geoPoint'],
       imageUrl: data['imageUrl'] ?? '',
       highlights: List<String>.from(data['highlights'] ?? []),
