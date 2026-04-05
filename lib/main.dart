@@ -12,11 +12,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
+    // Khởi tạo Firebase với thời gian chờ để tránh treo logo Flutter
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
-    ).timeout(const Duration(seconds: 10)); // Tăng thời gian chờ khởi tạo
+    ).timeout(const Duration(seconds: 10));
   } catch (e) {
-    print("Firebase init error: $e");
+    debugPrint("Firebase initialization error: $e");
   }
   
   runApp(const MyApp());
@@ -31,7 +32,7 @@ class MyApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<DatabaseService>(create: (_) => DatabaseService()),
-        // Lắng nghe sự thay đổi của User từ Firebase
+        // Lắng nghe trạng thái đăng nhập thời gian thực
         StreamProvider<User?>(
           create: (context) => context.read<AuthService>().user,
           initialData: null,
@@ -39,12 +40,14 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Hệ thống Bán vé Du lịch',
+        title: 'TravelVN - Hệ thống Quản lý Du lịch',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primarySwatch: Colors.blue,
+          primaryColor: const Color(0xFF0D47A1), // Blue 900
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0D47A1)),
           useMaterial3: true,
         ),
+        // AuthWrapper sẽ tự động điều hướng dựa trên trạng thái User
         home: const AuthWrapper(),
       ),
     );
@@ -56,14 +59,12 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // SỬ DỤNG CONSUMER ĐỂ THEO DÕI SÁT SAO TRẠNG THÁI LOGIN/LOGOUT
+    // Theo dõi sát sao trạng thái Login/Logout để chuyển hướng ngay lập tức
     return Consumer<User?>(
       builder: (context, user, child) {
         if (user != null) {
-          // Nếu có User -> Vào thẳng Home
           return const HomeScreen();
         } else {
-          // Nếu User là null (vừa Đăng xuất xong) -> Chuyển hướng ngay lập tức về Login
           return const LoginScreen();
         }
       },

@@ -1,7 +1,6 @@
 name: cuoiki
 description: "Hệ thống quản lý bán vé du lịch"
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -16,26 +15,25 @@ dependencies:
   firebase_core: ^2.27.0
   firebase_auth: ^4.17.8
   cloud_firestore: ^4.15.8
-  firebase_messaging: ^14.7.19
   
-  # UI & Helpers
-  flutter_rating_bar: ^4.0.1
+  # UI & Charts
   fl_chart: ^0.66.0
-  intl: ^0.18.1
+  flutter_rating_bar: ^4.0.1
   carousel_slider: ^5.0.0
   shimmer: ^3.0.0
   
   # State Management
   provider: ^6.1.1
   
-  # Storage & API
-  cloudinary_public: ^0.23.1
-  shared_preferences: ^2.2.2
+  # Utilities & Services
+  intl: ^0.18.1
   http: ^1.1.0
-  image_picker: ^1.0.4
+  shared_preferences: ^2.2.2
   url_launcher: ^6.2.5
+  image_picker: ^1.0.4
+  cloudinary_public: ^0.23.1
   
-  # Location & Maps
+  # Location
   geolocator: ^10.1.0
   google_maps_flutter: ^2.5.0
 

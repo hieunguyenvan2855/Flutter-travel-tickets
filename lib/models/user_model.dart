@@ -4,6 +4,8 @@ class UserModel {
   final String email;
   final String role; // 'admin' or 'customer'
   final List<String> bookingHistory;
+  final int points; // Thêm trường điểm tích lũy
+  final String rank; // Thêm trường hạng thành viên: 'Bạc', 'Vàng', 'Kim cương'
 
   UserModel({
     required this.uid,
@@ -11,6 +13,8 @@ class UserModel {
     required this.email,
     required this.role,
     this.bookingHistory = const [],
+    this.points = 0,
+    this.rank = 'Bạc',
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +24,8 @@ class UserModel {
       'email': email,
       'role': role,
       'bookingHistory': bookingHistory,
+      'points': points,
+      'rank': rank,
     };
   }
 
@@ -30,6 +36,8 @@ class UserModel {
       email: map['email'] ?? '',
       role: map['role'] ?? 'customer',
       bookingHistory: List<String>.from(map['bookingHistory'] ?? []),
+      points: map['points'] ?? 0,
+      rank: map['rank'] ?? 'Bạc',
     );
   }
 }

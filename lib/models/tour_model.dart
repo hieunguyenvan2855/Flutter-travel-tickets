@@ -26,9 +26,10 @@ class Tour {
   final int totalSlots;
   final int availableSlots;
   final String location;
-  final String category; // Đã thêm trường category
+  final String category;
   final GeoPoint? geoPoint;
   final String imageUrl;
+  final List<String> images;
   final List<String> highlights;
   final List<ScheduleItem> scheduleItems;
 
@@ -43,6 +44,7 @@ class Tour {
     required this.category,
     this.geoPoint,
     required this.imageUrl,
+    this.images = const [],
     this.highlights = const [],
     this.scheduleItems = const [],
   });
@@ -58,6 +60,7 @@ class Tour {
       'category': category,
       'geoPoint': geoPoint,
       'imageUrl': imageUrl,
+      'images': images,
       'highlights': highlights,
       'scheduleItems': scheduleItems.map((item) => item.toMap()).toList(),
     };
@@ -73,10 +76,11 @@ class Tour {
       totalSlots: data['totalSlots'] ?? 0,
       availableSlots: data['availableSlots'] ?? 0,
       location: data['location'] ?? '',
-      category: data['category'] ?? 'Chưa phân loại',
+      category: data['category'] ?? 'Khác',
       geoPoint: data['geoPoint'],
       imageUrl: data['imageUrl'] ?? '',
-      highlights: List<String>.from(data['highlights'] ?? []),
+      images: data['images'] != null ? List<String>.from(data['images']) : [],
+      highlights: data['highlights'] != null ? List<String>.from(data['highlights']) : [],
       scheduleItems: (data['scheduleItems'] as List? ?? [])
           .map((item) => ScheduleItem.fromMap(Map<String, dynamic>.from(item)))
           .toList(),

@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import 'booking_history_screen.dart';
+import '../admin/admin_booking_screen.dart';
+import '../admin/revenue_screen.dart'; // Import màn hình doanh thu
+import 'loyalty_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -16,7 +19,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Hồ sơ cá nhân', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: const Text('Trung tâm quản lý', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.blue[900],
         elevation: 0,
       ),
@@ -27,59 +30,49 @@ class ProfileScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final userData = snapshot.data;
+          final isAdmin = userData?.role == 'admin';
           final int bookingCount = userData?.bookingHistory.length ?? 0;
 
           return SingleChildScrollView(
             child: Column(
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      height: 120,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.blue[900],
-                        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
-                      ),
-                    ),
-                    Positioned(
-                      top: 20,
-                      child: Column(
-                        children: [
-                          const CircleAvatar(radius: 55, backgroundColor: Colors.white, child: Icon(Icons.person, size: 70, color: Colors.blue)),
-                          const SizedBox(height: 10),
-                          Text(userData?.name ?? 'Khách hàng', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                          Text(userData?.email ?? '', style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 140),
+                _buildHeader(userData),
+
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.fromLTRB(20, 25, 20, 20),
                   child: Row(
                     children: [
-                      _buildStatItem('Chuyến đi', bookingCount.toString(), Icons.map),
-                      _buildStatItem('Điểm thưởng', (bookingCount * 100).toString(), Icons.stars),
-                      _buildStatItem('Hạng', bookingCount > 5 ? 'Vàng' : 'Bạc', Icons.workspace_premium),
+                      _buildStatItem(context, 'Chuyến đi', bookingCount.toString(), Icons.map_outlined, userData),
+                      _buildStatItem(context, 'Điểm tích lũy', (userData?.points ?? 0).toString(), Icons.stars_outlined, userData),
+                      _buildStatItem(context, 'Hạng', isAdmin ? 'QUẢN TRỊ' : (userData?.rank ?? 'BẠC'), Icons.verified_user_outlined, userData),
                     ],
                   ),
                 ),
+
+                if (isAdmin) ...[
+                  _buildSectionTitle('QUẢN TRỊ HỆ THỐNG'),
+                  _buildMenuContainer([
+                    _buildMenuTile(Icons.admin_panel_settings, 'Quản lý Đơn hàng', 'Duyệt vé toàn hệ thống', () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminBookingScreen()));
+                    }),
+                    _buildMenuTile(Icons.analytics_outlined, 'Thống kê Doanh thu', 'Biểu đồ lợi nhuận theo tháng', () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminRevenueScreen()));
+                    }),
+                  ]),
+                ],
+
+                _buildSectionTitle('CÁ NHÂN & TIỆN ÍCH'),
+                _buildMenuContainer([
+                  _buildMenuTile(Icons.history, 'Lịch sử chuyến đi', 'Các tour bạn đã đặt và thanh toán', () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
+                  }),
+                  _buildMenuTile(Icons.notifications_none, 'Thông báo', 'Cập nhật khuyến mãi mới nhất', () {}),
+                  _buildMenuTile(Icons.lock_outline, 'Bảo mật tài khoản', 'Đổi mật khẩu', () {}),
+                ]),
+
                 const SizedBox(height: 30),
-                Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    children: [
-                      _buildMenuTile(Icons.history, 'Lịch sử chuyến đi', () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
-                      }),
-                      _buildMenuTile(Icons.logout, 'Đăng xuất', () => _showLogoutDialog(context, authService), color: Colors.red),
-                    ],
-                  ),
-                ),
+                _buildLogoutButton(context, authService),
+                const SizedBox(height: 40),
               ],
             ),
           );
@@ -88,25 +81,88 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Expanded(
+  Widget _buildHeader(UserModel? userData) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(bottom: 30),
+      decoration: BoxDecoration(
+        color: Colors.blue[900],
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+      ),
       child: Column(
         children: [
-          Icon(icon, color: Colors.blue[900], size: 28),
-          const SizedBox(height: 5),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4)),
+            child: const CircleAvatar(radius: 50, backgroundColor: Colors.white, child: Icon(Icons.person, size: 60, color: Colors.blue)),
+          ),
+          const SizedBox(height: 15),
+          Text(userData?.name ?? 'Người dùng', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(userData?.email ?? '', style: const TextStyle(fontSize: 14, color: Colors.white70)),
         ],
       ),
     );
   }
 
-  Widget _buildMenuTile(IconData icon, String title, VoidCallback onTap, {Color? color}) {
+  Widget _buildSectionTitle(String title) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+      child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue[900], letterSpacing: 1.2)),
+    );
+  }
+
+  Widget _buildMenuContainer(List<Widget> children) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 5))]),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, String label, String value, IconData icon, UserModel? userData) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (userData != null) {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => LoyaltyScreen(userData: userData)));
+          }
+        },
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blue[900], size: 26),
+            const SizedBox(height: 5),
+            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
     return ListTile(
-      leading: Icon(icon, color: color ?? Colors.blue[900]),
-      title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: Colors.blue[900], size: 20)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
       onTap: onTap,
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context, AuthService authService) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.red,
+          side: const BorderSide(color: Colors.red),
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        ),
+        onPressed: () => _showLogoutDialog(context, authService),
+        child: const Text('Đăng xuất tài khoản', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
     );
   }
 
@@ -115,8 +171,9 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xác nhận đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn thoát hệ thống không?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Hủy')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
           TextButton(onPressed: () async { Navigator.pop(context); await authService.signOut(); }, child: const Text('Đăng xuất', style: TextStyle(color: Colors.red))),
         ],
       ),
