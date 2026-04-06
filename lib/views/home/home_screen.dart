@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/auth_service.dart';
 import '../../services/database_service.dart';
 import '../../models/tour_model.dart';
@@ -27,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedCategory = "Tất cả";
   double _maxPrice = 100000000;
 
-  final List<String> _categories = ["Tất cả", "Biển đảo", "Vùng núi", "Văn hóa", "Nước ngoài"];
+  final List<String> _categories = ["Tất cả", "Biển đảo", "Vùng núi", "Văn hóa"];
 
   @override
   Widget build(BuildContext context) {
@@ -41,36 +42,33 @@ class _HomeScreenState extends State<HomeScreen> {
         final userData = snapshot.data;
         final isAdmin = userData?.role == 'admin';
 
-        // XÂY DỰNG DANH SÁCH TRANG CHUẨN
         List<Widget> pages = [
           _buildExplorePage(dbService, isAdmin),
-          if (!isAdmin) const BookingHistoryScreen(), // Khách hàng mới có tab vé
+          if (!isAdmin) const BookingHistoryScreen(),
           const ProfileScreen(),
         ];
 
-        // XÂY DỰNG THANH ĐIỀU HƯỚNG CHUẨN
         List<BottomNavigationBarItem> navItems = [
           const BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: 'Khám phá'),
           if (!isAdmin) const BottomNavigationBarItem(icon: Icon(Icons.confirmation_number_outlined), activeIcon: Icon(Icons.confirmation_number), label: 'Vé của tôi'),
           const BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Cá nhân'),
         ];
 
-        // Chống lỗi văng index
         if (_selectedIndex >= pages.length) _selectedIndex = 0;
 
         return Scaffold(
-          backgroundColor: Colors.white,
-          body: pages[_selectedIndex], // Thay IndexedStack bằng cách gọi trực tiếp để fix lỗi trắng màn hình
+          backgroundColor: Colors.grey[50],
+          body: pages[_selectedIndex],
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _selectedIndex,
             onTap: (index) => setState(() => _selectedIndex = index),
-            selectedItemColor: Colors.blue[900],
+            selectedItemColor: const Color(0xFF0D47A1),
             unselectedItemColor: Colors.grey,
             type: BottomNavigationBarType.fixed,
             items: navItems,
           ),
           floatingActionButton: FloatingActionButton(
-            backgroundColor: Colors.blue[900],
+            backgroundColor: const Color(0xFF0D47A1),
             child: const Icon(Icons.smart_toy, color: Colors.white),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatBotScreen())),
           ),
@@ -89,15 +87,18 @@ class _HomeScreenState extends State<HomeScreen> {
         final filteredTours = allTours.where((t) {
           final matchesSearch = t.title.toLowerCase().contains(_searchQuery) || t.location.toLowerCase().contains(_searchQuery);
           final matchesCategory = _selectedCategory == "Tất cả" || t.category == _selectedCategory;
-          return matchesSearch && matchesCategory && t.price <= _maxPrice;
+          final matchesPrice = t.price <= _maxPrice;
+          return matchesSearch && matchesCategory && matchesPrice;
         }).toList();
+
+        final spotlightTours = allTours.take(3).toList();
 
         return CustomScrollView(
           slivers: [
             SliverAppBar(
               expandedHeight: 120,
               pinned: true,
-              backgroundColor: Colors.blue[900],
+              backgroundColor: const Color(0xFF0D47A1),
               title: const Text('TravelVN', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: Colors.white)),
               actions: [
                 if (isAdmin)
@@ -114,10 +115,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
                     decoration: InputDecoration(
                       hintText: 'Bạn muốn đi đâu?',
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      prefixIcon: const Icon(Icons.search),
                       fillColor: Colors.white,
                       filled: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                     ),
                   ),
@@ -128,14 +128,16 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
-                    child: Text('Tour Nổi Bật', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  ),
-                  CarouselSlider(
-                    options: CarouselOptions(height: 200, autoPlay: true, enlargeCenterPage: true, viewportFraction: 0.85),
-                    items: allTours.take(3).map((tour) => _buildTourImage(tour)).toList(),
-                  ),
+                  if (spotlightTours.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+                      child: Text('Tour Nổi Bật', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
+                    CarouselSlider(
+                      options: CarouselOptions(height: 200, autoPlay: true, enlargeCenterPage: true, viewportFraction: 0.85),
+                      items: spotlightTours.map((tour) => _buildTourCardImage(tour)).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 15),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -147,15 +149,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: Text(cat),
                           selected: _selectedCategory == cat,
                           onSelected: (selected) => setState(() => _selectedCategory = cat),
-                          selectedColor: Colors.blue[900],
+                          selectedColor: const Color(0xFF0D47A1),
                           labelStyle: TextStyle(color: _selectedCategory == cat ? Colors.white : Colors.black),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                         ),
                       )).toList(),
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Row(
+                      children: [
+                        const Text('Giá tối đa: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('${(_maxPrice/1000000).toStringAsFixed(0)}tr', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                        Expanded(child: Slider(value: _maxPrice, min: 0, max: 100000000, divisions: 20, onChanged: (val) => setState(() => _maxPrice = val))),
+                      ],
+                    ),
+                  ),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
                     child: Text('Dành cho bạn', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                 ],
@@ -165,7 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildTourCard(context, filteredTours[index]),
+                  (context, index) => _buildTourListItem(context, filteredTours[index]),
                   childCount: filteredTours.length,
                 ),
               ),
@@ -177,41 +189,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTourImage(Tour tour) {
+  Widget _buildTourCardImage(Tour tour) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TourDetailScreen(tour: tour))),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: Image.network(
-          tour.imageUrl,
+        child: CachedNetworkImage(
+          imageUrl: tour.imageUrl,
           fit: BoxFit.cover,
           width: double.infinity,
-          errorBuilder: (context, error, stackTrace) => Container(
-            color: Colors.blue[900],
-            child: Center(child: Text(tour.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+          placeholder: (context, url) => Container(color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
+          errorWidget: (context, url, error) => Container(
+            color: const Color(0xFF0D47A1),
+            child: Center(child: Text(tour.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTourCard(BuildContext context, Tour tour) {
+  Widget _buildTourListItem(BuildContext context, Tour tour) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TourDetailScreen(tour: tour))),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 25),
+        margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(15),
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
         ),
         child: Column(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: Image.network(
-                tour.imageUrl, height: 200, width: double.infinity, fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              child: CachedNetworkImage(
+                imageUrl: tour.imageUrl,
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(height: 200, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
+                errorWidget: (context, url, error) => Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey)),
               ),
             ),
             Padding(
@@ -222,8 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(child: Text(tour.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Text('${NumberFormat('#,###').format(tour.price.toInt())}đ', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 18)),
+                      Expanded(child: Text(tour.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      Text('${NumberFormat('#,###').format(tour.price.toInt())}đ', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 17)),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -231,9 +248,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       const Icon(Icons.location_on, size: 14, color: Colors.grey),
                       const SizedBox(width: 4),
-                      Text(tour.location, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                      Text(tour.location, style: const TextStyle(color: Colors.grey, fontSize: 13)),
                       const Spacer(),
-                      Text('Còn ${tour.availableSlots} chỗ', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                      const Icon(Icons.people_outline, size: 14, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text('Còn ${tour.availableSlots} chỗ', style: const TextStyle(color: Colors.grey, fontSize: 13)),
                     ],
                   ),
                 ],

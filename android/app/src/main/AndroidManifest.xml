@@ -1,13 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- CẤP QUYỀN TRUY CẬP INTERNET ĐỂ HIỆN ẢNH -->
+    <!-- QUYỀN TRUY CẬP INTERNET -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- QUYỀN TRUY CẬP VỊ TRÍ (GPS) CHO GEOLOCATOR -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
     <application
-        android:label="cuoiki"
+        android:label="TravelVN"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+
+        <!-- API KEY GOOGLE MAPS (CẦN THIẾT NẾU DÙNG MAPS) -->
+        <meta-data android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyC..." />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

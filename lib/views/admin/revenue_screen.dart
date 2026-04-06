@@ -1,7 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../services/database_service.dart';
+import '../../models/revenue_report_model.dart';
 
 class AdminRevenueScreen extends StatefulWidget {
   const AdminRevenueScreen({super.key});
@@ -12,204 +14,163 @@ class AdminRevenueScreen extends StatefulWidget {
 
 class _AdminRevenueScreenState extends State<AdminRevenueScreen> {
   bool _isLoading = true;
-
-  // Mảng lưu trữ doanh thu của 12 tháng (từ tháng 1 đến tháng 12)
-  List<double> _monthlyRevenue = List.filled(12, 0.0);
-  double _totalRevenueYear = 0.0;
-  int _currentYear = DateTime.now().year;
+  RevenueReport? _report;
+  final int _currentYear = DateTime.now().year;
 
   @override
   void initState() {
     super.initState();
-    _fetchRevenueData(); // Gọi hàm lấy dữ liệu ngay khi mở màn hình
+    _loadDetailedReport();
   }
 
-  // =========================================================================
-  // LOGIC TASK 3.4: TRUY VẤN FIRESTORE VÀ TÍNH TỔNG DOANH THU THEO THÁNG
-  // =========================================================================
-  Future<void> _fetchRevenueData() async {
-    try {
-      // 1. Truy vấn bảng 'bookings', chỉ lấy những đơn hàng đã thanh toán hoặc hoàn thành
-      final snapshot = await FirebaseFirestore.instance
-          .collection('bookings')
-          .where('status', whereIn: ['paid', 'completed']).get();
-
-      List<double> tempRevenue = List.filled(12, 0.0);
-      double tempTotalYear = 0.0;
-
-      // 2. Lặp qua từng đơn hàng để cộng dồn tiền vào đúng tháng
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        if (data['createdAt'] != null && data['totalPrice'] != null) {
-          // Ép kiểu an toàn cho ngày tháng và số tiền
-          DateTime date = (data['createdAt'] as Timestamp).toDate();
-          double price = (data['totalPrice'] as num).toDouble();
-
-          // Chỉ tính doanh thu của năm hiện tại
-          if (date.year == _currentYear) {
-            // Index của mảng từ 0-11, tương ứng tháng 1-12
-            tempRevenue[date.month - 1] += price;
-            tempTotalYear += price;
-          }
-        }
-      }
-
-      // 3. Cập nhật giao diện (UI)
-      setState(() {
-        _monthlyRevenue = tempRevenue;
-        _totalRevenueYear = tempTotalYear;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      debugPrint("Lỗi tải doanh thu: $e");
-    }
+  Future<void> _loadDetailedReport() async {
+    final dbService = Provider.of<DatabaseService>(context, listen: false);
+    // Đã sửa tên hàm cho đúng với DatabaseService
+    final report = await dbService.getDetailedRevenueReport(_currentYear);
+    setState(() {
+      _report = report;
+      _isLoading = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ');
+    final fmt = NumberFormat.currency(locale: 'vi_VN', symbol: 'đ', decimalDigits: 0);
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Thống kê Doanh thu',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Báo cáo Doanh thu Chi tiết', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue[900],
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16.0),
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // THẺ TỔNG DOANH THU NĂM
-                  Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        children: [
-                          Text('Tổng Doanh Thu Năm $_currentYear',
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 10),
-                          Text(
-                            currencyFormat.format(_totalRevenueYear),
-                            style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue[900]),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  _buildQuickStats(fmt),
+                  const SizedBox(height: 25),
+                  _buildSectionTitle('Xu hướng doanh thu theo tháng'),
+                  _buildMonthlyChart(fmt),
+                  const SizedBox(height: 25),
+                  _buildSectionTitle('Tỷ lệ doanh thu theo danh mục'),
+                  _buildCategoryAnalysis(fmt),
+                  const SizedBox(height: 25),
+                  _buildSectionTitle('Top Tour bán chạy nhất'),
+                  _buildTopTours(fmt),
                   const SizedBox(height: 30),
-                  const Text('Biểu đồ doanh thu từng tháng',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-
-                  // =========================================================================
-                  // GIAO DIỆN BIỂU ĐỒ CỘT (BAR CHART)
-                  // =========================================================================
-                  Expanded(
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15)),
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                            top: 30, right: 16, left: 16, bottom: 16),
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            // Tính cột cao nhất + thêm 20% khoảng trống bên trên
-                            maxY: _totalRevenueYear == 0
-                                ? 1000000
-                                : _monthlyRevenue
-                                        .reduce((a, b) => a > b ? a : b) *
-                                    1.2,
-
-                            // Cấu hình các thanh tiêu đề (Trục X và Y)
-                            titlesData: FlTitlesData(
-                              show: true,
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget:
-                                      (double value, TitleMeta meta) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(top: 8.0),
-                                      child: Text('T${value.toInt()}',
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold)),
-                                    );
-                                  },
-                                ),
-                              ),
-                              leftTitles: AxisTitles(
-                                  sideTitles: SideTitles(
-                                      showTitles:
-                                          false)), // Ẩn cột số bên trái cho gọn
-                              topTitles: AxisTitles(
-                                  sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: AxisTitles(
-                                  sideTitles: SideTitles(showTitles: false)),
-                            ),
-                            gridData: FlGridData(show: false),
-                            borderData: FlBorderData(show: false),
-
-                            // Cấu hình hiệu ứng chạm (Touch Tooltip)
-                            barTouchData: BarTouchData(
-                              enabled: true,
-                              touchTooltipData: BarTouchTooltipData(
-                                getTooltipItem:
-                                    (group, groupIndex, rod, rodIndex) {
-                                  return BarTooltipItem(
-                                    currencyFormat.format(rod.toY),
-                                    const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold),
-                                  );
-                                },
-                              ),
-                            ),
-
-                            // Dữ liệu truyền vào vẽ 12 cột
-                            barGroups: List.generate(12, (index) {
-                              return BarChartGroupData(
-                                x: index + 1,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: _monthlyRevenue[index],
-                                    color: Colors.blue[600],
-                                    width: 18, // Độ rộng của cột
-                                    borderRadius: const BorderRadius.vertical(
-                                        top: Radius.circular(6)),
-                                  ),
-                                ],
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15, left: 5),
+      child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+    );
+  }
+
+  Widget _buildQuickStats(NumberFormat fmt) {
+    double total = _report!.monthlyRevenue.reduce((a, b) => a + b);
+    return Row(
+      children: [
+        _statCard('Tổng thu', fmt.format(total), Colors.blue[900]!),
+        const SizedBox(width: 10),
+        _statCard('Đã bán', '${_report!.totalTickets} vé', Colors.orange[700]!),
+      ],
+    );
+  }
+
+  Widget _statCard(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            FittedBox(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMonthlyChart(NumberFormat fmt) {
+    return Container(
+      height: 250,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: BarChart(
+        BarChartData(
+          alignment: BarChartAlignment.spaceAround,
+          maxY: _report!.monthlyRevenue.isEmpty ? 100 : _report!.monthlyRevenue.reduce((a, b) => a > b ? a : b) * 1.2,
+          barGroups: List.generate(12, (i) => BarChartGroupData(
+            x: i + 1,
+            barRods: [BarChartRodData(toY: _report!.monthlyRevenue[i], color: Colors.blue[400], width: 12, borderRadius: BorderRadius.circular(2))],
+          )),
+          titlesData: FlTitlesData(
+            show: true,
+            bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) => Text('T${v.toInt()}', style: const TextStyle(fontSize: 9)))),
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryAnalysis(NumberFormat fmt) {
+    double total = _report!.monthlyRevenue.isEmpty ? 0 : _report!.monthlyRevenue.reduce((a, b) => a + b);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: Column(
+        children: _report!.revenueByCategory.entries.map((e) {
+          double percent = total > 0 ? (e.value / total) * 100 : 0;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(e.key, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    Text('${percent.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                LinearProgressIndicator(value: percent / 100, backgroundColor: Colors.grey[200], color: Colors.blue[700], minHeight: 6),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTopTours(NumberFormat fmt) {
+    return Column(
+      children: _report!.topTours.map((tour) => Card(
+        margin: const EdgeInsets.only(bottom: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          leading: Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(10)), child: Icon(Icons.stars, color: Colors.orange[700])),
+          title: Text(tour['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('Đã bán: ${tour['sales']} vé'),
+          trailing: Text(fmt.format(tour['revenue']), style: TextStyle(color: Colors.blue[900], fontWeight: FontWeight.bold)),
+        ),
+      )).toList(),
     );
   }
 }

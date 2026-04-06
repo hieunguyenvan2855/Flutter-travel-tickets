@@ -8,7 +8,7 @@ class AuthService {
 
   Stream<User?> get user => _auth.authStateChanges();
 
-  // Thêm lại phương thức getUserData bị thiếu
+  // Lấy dữ liệu User một lần
   Future<UserModel?> getUserData(String uid) async {
     try {
       DocumentSnapshot doc = await _db.collection('users').doc(uid).get();
@@ -19,6 +19,16 @@ class AuthService {
       print("Error getting user data: $e");
     }
     return null;
+  }
+
+  // MỚI: Lắng nghe dữ liệu User theo thời gian thực (Real-time)
+  Stream<UserModel?> getUserDataStream(String uid) {
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (doc.exists) {
+        return UserModel.fromMap(doc.data() as Map<String, dynamic>);
+      }
+      return null;
+    });
   }
 
   Future<String?> signUp(String email, String password, String name) async {
@@ -38,16 +48,7 @@ class AuthService {
       }
       return null;
     } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'weak-password':
-          return 'Mật khẩu quá yếu (tối thiểu 6 ký tự)';
-        case 'email-already-in-use':
-          return 'Email này đã được đăng ký rồi';
-        case 'invalid-email':
-          return 'Định dạng email không hợp lệ';
-        default:
-          return 'Lỗi: ${e.message}';
-      }
+      return e.message;
     } catch (e) {
       return e.toString();
     }
@@ -58,7 +59,7 @@ class AuthService {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       return null;
     } on FirebaseAuthException catch (e) {
-      return 'Lỗi đăng nhập: ${e.message}';
+      return e.message;
     } catch (e) {
       return e.toString();
     }
