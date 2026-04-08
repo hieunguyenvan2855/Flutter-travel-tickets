@@ -28,18 +28,126 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
   Future<void> _launchMaps() async {
     String query;
     if (widget.tour.geoPoint != null && widget.tour.geoPoint!.latitude != 0) {
-      // Nếu có tọa độ GPS -> Dùng tọa độ
       query = '${widget.tour.geoPoint!.latitude},${widget.tour.geoPoint!.longitude}';
     } else {
-      // Nếu thiếu GPS -> Dùng Tên Tour + Địa điểm để Google Maps tự tìm
       query = Uri.encodeComponent('${widget.tour.title} ${widget.tour.location}');
     }
-    
     final url = 'https://www.google.com/maps/search/?api=1&query=$query';
-    
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     }
+  }
+
+  // --- HÀM HIỂN THỊ FORM ĐẶT VÉ (ĐÃ SỬA LỖI) ---
+  void _showBookingForm(BuildContext context, DatabaseService dbService, User? user) {
+    int ticketCount = 1;
+    DateTime selectedDate = DateTime.now().add(const Duration(days: 1));
+    final phoneController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Center(child: SizedBox(width: 50, child: Divider(thickness: 4))),
+              const SizedBox(height: 10),
+              const Text("Xác nhận đặt vé", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              
+              const Text("Ngày khởi hành", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today, color: Colors.blue),
+                title: Text(DateFormat('dd/MM/yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: TextButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) setModalState(() => selectedDate = picked);
+                  },
+                  child: const Text("Thay đổi"),
+                ),
+              ),
+              const Divider(),
+
+              const Text("Số lượng khách", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Người lớn", style: TextStyle(fontSize: 16)),
+                  Row(
+                    children: [
+                      IconButton(onPressed: ticketCount > 1 ? () => setModalState(() => ticketCount--) : null, icon: const Icon(Icons.remove_circle_outline, color: Colors.blue)),
+                      Text("$ticketCount", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(onPressed: () => setModalState(() => ticketCount++), icon: const Icon(Icons.add_circle_outline, color: Colors.blue)),
+                    ],
+                  )
+                ],
+              ),
+              const Divider(),
+
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(labelText: "Số điện thoại liên hệ", prefixIcon: Icon(Icons.phone)),
+                keyboardType: TextInputType.phone,
+              ),
+              
+              const SizedBox(height: 30),
+              Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Tổng tạm tính:", style: TextStyle(fontSize: 16)),
+                    Text("${NumberFormat('#,###').format(widget.tour.price.toInt() * ticketCount)}đ", 
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  onPressed: () async {
+                    if (phoneController.text.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng nhập số điện thoại")));
+                      return;
+                    }
+                    final res = await dbService.bookTour(
+                      userId: user?.uid ?? 'guest', 
+                      tourId: widget.tour.id,
+                      tickets: ticketCount,
+                      phone: phoneController.text,
+                      travelDate: DateFormat('dd/MM/yyyy').format(selectedDate),
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res)));
+                    }
+                  },
+                  child: const Text("XÁC NHẬN ĐẶT VÉ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 25),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -104,25 +212,19 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                 children: [
                   Text(widget.tour.title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  
-                  // ĐỊA ĐIỂM NHẤN ĐỂ MỞ MAPS
                   InkWell(
                     onTap: _launchMaps,
                     borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on, color: Colors.blue, size: 20),
-                          const SizedBox(width: 5),
-                          Text(widget.tour.location, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
-                          const SizedBox(width: 10),
-                          const Icon(Icons.open_in_new, size: 14, color: Colors.blueGrey),
-                        ],
-                      ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on, color: Colors.blue, size: 20),
+                        const SizedBox(width: 5),
+                        Text(widget.tour.location, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.open_in_new, size: 14, color: Colors.blueGrey),
+                      ],
                     ),
                   ),
-                  
                   const SizedBox(height: 15),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -132,8 +234,6 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                     ],
                   ),
                   const Divider(height: 40),
-                  
-                  // NÚT MỞ APP GOOGLE MAPS
                   ElevatedButton.icon(
                     onPressed: _launchMaps,
                     icon: const Icon(Icons.directions, color: Colors.white),
@@ -146,18 +246,15 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-
                   const Text('Giới thiệu chuyến đi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   Text(widget.tour.description, style: const TextStyle(color: Colors.black87, height: 1.5)),
                   const SizedBox(height: 20),
-
                   ...widget.tour.highlights.map((h) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(children: [const Icon(Icons.check_circle, color: Colors.green, size: 18), const SizedBox(width: 10), Text(h)]),
                   )),
                   const Divider(height: 40),
-
                   const Text('LỊCH TRÌNH CHI TIẾT', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 15),
                   ...widget.tour.scheduleItems.map((item) => Card(
@@ -178,18 +275,13 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
           ),
         ],
       ),
-      bottomSheet: _buildBottomBar(),
+      bottomSheet: _buildBottomBar(context, dbService, user),
     );
   }
 
   Widget _buildTourImage(String path) {
-    if (path.startsWith('assets/')) {
-      return Image.asset(path, fit: BoxFit.cover, width: double.infinity);
-    }
     return CachedNetworkImage(
-      imageUrl: path,
-      fit: BoxFit.cover,
-      width: double.infinity,
+      imageUrl: path, fit: BoxFit.cover, width: double.infinity,
       errorWidget: (c, e, s) => Container(color: Colors.blue[900], child: const Icon(Icons.image, color: Colors.white)),
     );
   }
@@ -209,7 +301,7 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar(BuildContext context, DatabaseService dbService, User? user) {
     return Container(
       padding: const EdgeInsets.all(20),
       height: 90,
@@ -219,7 +311,7 @@ class _TourDetailScreenState extends State<TourDetailScreen> {
           Expanded(child: Text('${NumberFormat('#,###').format(widget.tour.price.toInt())}đ', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: () {},
+            onPressed: () => _showBookingForm(context, dbService, user),
             child: const Text('ĐẶT VÉ NGAY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],

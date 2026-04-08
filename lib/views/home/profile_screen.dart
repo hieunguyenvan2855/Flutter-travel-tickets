@@ -5,11 +5,81 @@ import '../../services/auth_service.dart';
 import '../../models/user_model.dart';
 import 'booking_history_screen.dart';
 import '../admin/admin_booking_screen.dart';
-import '../admin/revenue_screen.dart'; // Import màn hình doanh thu
+import '../admin/revenue_screen.dart';
 import 'loyalty_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  // HÀM HIỂN THỊ DIALOG ĐỔI MẬT KHẨU
+  void _showChangePasswordDialog(BuildContext context, AuthService authService) {
+    final oldPassController = TextEditingController();
+    final newPassController = TextEditingController();
+    final confirmPassController = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Đổi mật khẩu', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: oldPassController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: newPassController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mật khẩu mới', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 15),
+                TextField(
+                  controller: confirmPassController,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Xác nhận mật khẩu mới', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue[900], foregroundColor: Colors.white),
+              onPressed: isLoading ? null : () async {
+                if (newPassController.text != confirmPassController.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mật khẩu xác nhận không khớp")));
+                  return;
+                }
+                if (newPassController.text.length < 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Mật khẩu mới phải từ 6 ký tự")));
+                  return;
+                }
+
+                setDialogState(() => isLoading = true);
+                final error = await authService.changePassword(oldPassController.text, newPassController.text);
+                setDialogState(() => isLoading = false);
+
+                if (error == null) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đổi mật khẩu thành công!"), backgroundColor: Colors.green));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+                }
+              },
+              child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Cập nhật'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +137,9 @@ class ProfileScreen extends StatelessWidget {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const BookingHistoryScreen()));
                   }),
                   _buildMenuTile(Icons.notifications_none, 'Thông báo', 'Cập nhật khuyến mãi mới nhất', () {}),
-                  _buildMenuTile(Icons.lock_outline, 'Bảo mật tài khoản', 'Đổi mật khẩu', () {}),
+                  _buildMenuTile(Icons.lock_outline, 'Bảo mật tài khoản', 'Đổi mật khẩu', () {
+                    _showChangePasswordDialog(context, authService);
+                  }),
                 ]),
 
                 const SizedBox(height: 30),

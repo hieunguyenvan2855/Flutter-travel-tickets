@@ -8,7 +8,6 @@ class AuthService {
 
   Stream<User?> get user => _auth.authStateChanges();
 
-  // Lấy dữ liệu User một lần
   Future<UserModel?> getUserData(String uid) async {
     try {
       DocumentSnapshot doc = await _db.collection('users').doc(uid).get();
@@ -21,51 +20,56 @@ class AuthService {
     return null;
   }
 
-  // MỚI: Lắng nghe dữ liệu User theo thời gian thực (Real-time)
   Stream<UserModel?> getUserDataStream(String uid) {
     return _db.collection('users').doc(uid).snapshots().map((doc) {
-      if (doc.exists) {
-        return UserModel.fromMap(doc.data() as Map<String, dynamic>);
-      }
+      if (doc.exists) return UserModel.fromMap(doc.data() as Map<String, dynamic>);
       return null;
     });
   }
 
-  Future<String?> signUp(String email, String password, String name) async {
+  // --- HÀM ĐỔI MẬT KHẨU AN TOÀN ---
+  Future<String?> changePassword(String currentPassword, String newPassword) async {
     try {
-      UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
-      User? user = result.user;
+      User? user = _auth.currentUser;
+      if (user == null || user.email == null) return "Chưa đăng nhập";
 
-      if (user != null) {
-        await _db.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'name': name,
-          'email': email,
-          'role': 'customer',
-          'bookingHistory': [],
-        });
-      }
-      return null;
+      // Firebase yêu cầu xác thực lại mật khẩu cũ trước khi cho phép đổi mới
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return null; // Thành công
     } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password') return "Mật khẩu hiện tại không đúng";
+      if (e.code == 'weak-password') return "Mật khẩu mới quá yếu";
       return e.message;
     } catch (e) {
       return e.toString();
     }
+  }
+
+  Future<String?> signUp(String email, String password, String name) async {
+    try {
+      UserCredential result = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+      User? user = result.user;
+      if (user != null) {
+        await _db.collection('users').doc(user.uid).set({
+          'uid': user.uid, 'name': name, 'email': email, 'role': 'customer', 'bookingHistory': [],
+        });
+      }
+      return null;
+    } on FirebaseAuthException catch (e) { return e.message; } catch (e) { return e.toString(); }
   }
 
   Future<String?> signIn(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message;
-    } catch (e) {
-      return e.toString();
-    }
+    } on FirebaseAuthException catch (e) { return e.message; } catch (e) { return e.toString(); }
   }
 
-  Future<void> signOut() async {
-    await _auth.signOut();
-  }
+  Future<void> signOut() async => await _auth.signOut();
 }
