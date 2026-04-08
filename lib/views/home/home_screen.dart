@@ -87,8 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final filteredTours = allTours.where((t) {
           final matchesSearch = t.title.toLowerCase().contains(_searchQuery) || t.location.toLowerCase().contains(_searchQuery);
           final matchesCategory = _selectedCategory == "Tất cả" || t.category == _selectedCategory;
-          final matchesPrice = t.price <= _maxPrice;
-          return matchesSearch && matchesCategory && matchesPrice;
+          return matchesSearch && matchesCategory && t.price <= _maxPrice;
         }).toList();
 
         final spotlightTours = allTours.take(3).toList();
@@ -189,21 +188,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // HÀM HIỂN THỊ ẢNH THÔNG MINH: TỰ ĐỘNG CHỌN ASSET HOẶC NETWORK
+  Widget _buildTourImage(String path, {double? height, double? width, BoxFit fit = BoxFit.cover}) {
+    if (path.startsWith('assets/')) {
+      return Image.asset(path, height: height, width: width, fit: fit, errorBuilder: (context, error, stackTrace) {
+        return Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported));
+      });
+    } else {
+      return CachedNetworkImage(
+        imageUrl: path,
+        height: height,
+        width: width,
+        fit: fit,
+        placeholder: (context, url) => Container(color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
+        errorWidget: (context, url, error) => Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported)),
+      );
+    }
+  }
+
   Widget _buildTourCardImage(Tour tour) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => TourDetailScreen(tour: tour))),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: CachedNetworkImage(
-          imageUrl: tour.imageUrl,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          placeholder: (context, url) => Container(color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
-          errorWidget: (context, url, error) => Container(
-            color: const Color(0xFF0D47A1),
-            child: Center(child: Text(tour.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-          ),
-        ),
+        child: _buildTourImage(tour.imageUrl, width: double.infinity),
       ),
     );
   }
@@ -222,14 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-              child: CachedNetworkImage(
-                imageUrl: tour.imageUrl,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(height: 200, color: Colors.grey[200], child: const Center(child: CircularProgressIndicator())),
-                errorWidget: (context, url, error) => Container(height: 200, color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey)),
-              ),
+              child: _buildTourImage(tour.imageUrl, height: 200, width: double.infinity),
             ),
             Padding(
               padding: const EdgeInsets.all(15),
